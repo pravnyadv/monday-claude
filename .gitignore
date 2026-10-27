@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+
+# Coverage
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Account-specific canonical reference (use reference.example.json as template)
+reference.json
+
+# Clipboard scratch images
+*-image-from-clipboard.png
+
+# Personal one-off scripts (kept locally, not published)
+fetchUsers.js
+fetchDescriptions.js
+migrateToSubitems.js
+reorderSubitems.js
+
+# Personal, unsupported time-tracking helper (uses a browser session, not the API) + its session creds
+mon-time.js
+.monday-session.curl
+
+# Saved API token (written by `mon.js login`)
+monday-token
+
+# personal time-tracking ledger written by mon-time.js (never commit)
+.time-log.jsonl
+# work journal written by ~/.claude/hooks/work-journal.py (never commit)
+.work-journal.jsonl
+worklog.db
+worklog.db-wal
+worklog.db-shm
+worklog-db.js
+worklog.js
+
+# session links store written by hooks/links-hook.js (per machine, never commit)
+links.db
+links.db-wal
+links.db-shm

@@ -1,0 +1,10 @@
+{
+  "name": "monday-tasks",
+  "description": "Account-agnostic monday.com CLI (mon.js) plus a skill for reading and writing tasks from Claude Code.",
+  "version": "1.3.0",
+  "author": {
+    "name": "pravnyadv"
+  },
+  "homepage": "https://github.com/pravnyadv/monday-claude",
+  "license": "MIT"
+}

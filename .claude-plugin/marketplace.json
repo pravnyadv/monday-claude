@@ -1,0 +1,14 @@
+{
+  "name": "monday-claude",
+  "owner": {
+    "name": "pravnyadv",
+    "url": "https://github.com/pravnyadv"
+  },
+  "plugins": [
+    {
+      "name": "monday-tasks",
+      "source": "./",
+      "description": "Account-agnostic monday.com CLI + Claude Code skill for reading and writing tasks."
+    }
+  ]
+}
