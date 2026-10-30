@@ -11,6 +11,10 @@ semantic versioning.
   through monday's multipart `/file` endpoint. Only a 429 is retried, since an upload may have landed.
 - `like <updateId>` / `unlike <updateId>`: like or unlike an update or reply.
 
+### Fixed
+- `desc-get`, `desc-images` and `get --full` now read the whole item description. monday's `blocks`
+  field returns only the first 25 blocks unless paged, so longer descriptions were silently cut off.
+
 ## [1.3.0] - 2026-10-17
 
 ### Added
