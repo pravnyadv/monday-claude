@@ -661,6 +661,19 @@ function itemStatus(cfg, it) {
 
 const UPDATE_FIELDS = 'id item_id created_at creator_id creator{ name } text_body body assets{ id name file_extension public_url } replies{ id created_at creator_id creator{ name } text_body body }';
 
+const DESC_PAGE = 100;
+
+/** Every block of an item's description: `blocks` silently returns only its first 25 unless paged. */
+async function descriptionBlocks(itemId) {
+  const blocks = [];
+  for (let page = 1; ; page++) {
+    const d = await api(`query($id:[ID!],$p:Int){ items(ids:$id){ description{ blocks(limit:${DESC_PAGE}, page:$p){ id type content } } } }`, { id: [String(itemId)], p: page });
+    const got = d.items[0]?.description?.blocks || [];
+    blocks.push(...got);
+    if (got.length < DESC_PAGE) return blocks;
+  }
+}
+
 /** An item's board with live column definitions (titles, types, settings) for `set`/`estimate`/`insights`. */
 async function boardColumnsOf(itemId) {
   const d = await api(`query($id:[ID!]){ items(ids:$id){ name board{ id name columns{ id title type settings_str } } } }`, { id: [String(itemId)] });
@@ -1129,7 +1142,7 @@ const cmds = {
     const n = Number(FLAGS.updates || (full ? 5 : 0));
     const d = await api(
       `query($id:[ID!]){ items(ids:$id){ id name url group{title} board{id name} column_values{ id type text column{ title } }
-        ${full ? 'description{ blocks{ id type content } }' : ''} ${n ? `updates(limit:${n}){ ${UPDATE_FIELDS} }` : ''} } }`,
+        ${n ? `updates(limit:${n}){ ${UPDATE_FIELDS} }` : ''} } }`,
       { id: [String(itemId)] }
     );
     const it = d.items[0];
@@ -1146,7 +1159,7 @@ const cmds = {
     if (full) {
       out.emptyColumns = cols.filter((c) => !c.text).map((c) => ({ id: c.id, type: c.type, title: c.title }));
       log(`  (empty: ${out.emptyColumns.map((c) => `${c.title} (${c.id})`).join(', ')})`);
-      out.description = blocksToMarkdown(it.description?.blocks);
+      out.description = blocksToMarkdown(await descriptionBlocks(itemId));
       log('--- description ---');
       log(out.description || '(empty)');
     }
@@ -1231,15 +1244,13 @@ const cmds = {
   },
 
   async ['desc-get']([itemId]) {
-    const d = await api(`query($id:[ID!]){ items(ids:$id){ description{ blocks{ id type content } } } }`, { id: [String(itemId)] });
-    const md = blocksToMarkdown(d.items[0].description?.blocks);
+    const md = blocksToMarkdown(await descriptionBlocks(itemId));
     log(md);
     return { itemId: String(itemId), markdown: md };
   },
 
   async ['desc-images']([itemId, outDir]) {
-    const d = await api(`query($id:[ID!]){ items(ids:$id){ description{ blocks{ type content } } } }`, { id: [String(itemId)] });
-    const assetIds = (d.items[0].description?.blocks || [])
+    const assetIds = (await descriptionBlocks(itemId))
       .filter((b) => b.type === 'image')
       .map((b) => { try { return JSON.parse(b.content).assetId; } catch { return null; } })
       .filter(Boolean);

@@ -291,3 +291,19 @@ test('like and unlike send the mutation for the id, and dry-run sends nothing', 
   assert.deepEqual(f.calls.map((c) => c.vars.id), ['42', '42']);
   await assert.rejects(cmds.like(['x']), /Usage/);
 });
+
+test('desc-get and get --full page through every description block, past the API default of 25', async () => {
+  const block = (i) => ({ id: String(i), type: 'normal text', content: JSON.stringify({ deltaFormat: [{ insert: `line ${i}` }] }) });
+  const pages = { 1: Array.from({ length: 100 }, (_, i) => block(i + 1)), 2: Array.from({ length: 30 }, (_, i) => block(i + 101)) };
+  const pagesAsked = [];
+  const api = async (q, v) => {
+    if (/description/.test(q)) { pagesAsked.push(v.p); return { items: [{ description: { blocks: pages[v.p] || [] } }] }; }
+    return { items: [{ id: '42', name: 'Task', url: 'u', group: { title: 'G' }, board: { id: '100', name: 'Board' }, column_values: [] }] };
+  };
+  setRuntime({ ref: REF, api, flags: {} });
+  const md = (await cmds['desc-get'](['42'])).markdown.split('\n');
+  assert.deepEqual([md.length, md[0], md[129]], [130, 'line 1', 'line 130']);
+  assert.deepEqual(pagesAsked, [1, 2]);
+  setRuntime({ ref: REF, api, flags: { full: true } });
+  assert.equal((await cmds.get(['42'])).description.split('\n').length, 130);
+});
