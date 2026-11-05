@@ -66,7 +66,7 @@
  *                                        with a resume command). Kept by hooks/links-hook.js; local only.
  *   links add <itemId> [--mr <url>]... [--session <id>] [--branch <b> --repo <r>]   Link by hand.
  *   links import [--days N]              Backfill from Claude transcripts (default 180 days).
- *   resume <itemId> [--new] [--url u] [--print]   Reopen the task's best Claude session (from its own directory), or
+ *   resume <itemId> [--new] [--url u] [--model m] [--print]   Reopen the task's best Claude session (from its own directory), or
  *                                        start a new one named monday_<id>. --print just prints the command.
  *   mcp tools [filter]                   List the hosted monday MCP tools (RO = read-only).
  *   mcp <tool> ['<json>'|@file] [--write]  Call any MCP tool; write tools need --write.
@@ -405,7 +405,7 @@ function blocksToMarkdown(blocks) {
 }
 
 const BOOL_FLAGS = new Set(['json', 'dry-run', 'allow-style', 'full', 'write', 'keep-assignees', 'transcript', 'all', 'yes', 'no-hooks', 'no-names', 'print', 'tasks', 'new']);
-const VALUE_FLAGS = new Set(['boards', 'cc', 'to', 'status', 'mr', 'body', 'estimate', 'by', 'days', 'limit', 'images', 'id', 'since', 'until', 'updates', 'item', 'session', 'branch', 'repo', 'url']);
+const VALUE_FLAGS = new Set(['boards', 'cc', 'to', 'status', 'mr', 'body', 'estimate', 'by', 'days', 'limit', 'images', 'id', 'since', 'until', 'updates', 'item', 'session', 'branch', 'repo', 'url', 'model']);
 const LIST_FLAGS = new Set(['cc', 'mr']);
 
 /** Split argv into positional args and --flags; list flags repeat or take commas. Unknown flags throw. */
@@ -1606,10 +1606,11 @@ const cmds = {
   /**
    * Reopen a task's Claude session: the best match from the links, resumed from its own directory,
    * else (or with --new) a new session named monday_<id> with the task link (--url) typed into its input,
-   * unsent. On a terminal it starts claude; otherwise (or with --print) it prints the command.
+   * unsent. --model picks the session's model (e.g. sonnet for a routine fix). On a terminal it starts
+   * claude; otherwise (or with --print) it prints the command.
    */
   async resume([itemId]) {
-    if (!/^\d+$/.test(itemId || '')) throw new Error('Usage: resume <itemId> [--new] [--url <taskUrl>] [--print]');
+    if (!/^\d+$/.test(itemId || '')) throw new Error('Usage: resume <itemId> [--new] [--url <taskUrl>] [--model <model>] [--print]');
     const store = links();
     let best;
     try {
@@ -1619,6 +1620,7 @@ const cmds = {
     }
     if (FLAGS.new) best = undefined;
     const [cwd, args] = best ? [best.cwd, ['--resume', best.id]] : [process.cwd(), ['--name', `monday_${itemId}`]];
+    if (FLAGS.model) args.push('--model', FLAGS.model);
     const command = `cd ${JSON.stringify(cwd)} && claude ${args.join(' ')}`;
     log(best ? `task ${itemId}: ${best.title || best.id} [${best.how.join('; ')}]` : `task ${itemId}: ${FLAGS.new ? 'new session' : 'no earlier session'}, starting one named monday_${itemId}`);
     if (FLAGS.print || JSON_OUT || !process.stdin.isTTY) {

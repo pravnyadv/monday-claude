@@ -10,6 +10,11 @@ semantic versioning.
 - `attach <updateId> <file> [more...]`: attach local files to an update or reply (images show inline),
   through monday's multipart `/file` endpoint. Only a 429 is retried, since an upload may have landed.
 - `like <updateId>` / `unlike <updateId>`: like or unlike an update or reply.
+- `resume --model <model>`: start or resume the task's session on that model (e.g. `sonnet` for a routine fix).
+- Task-switch nudge: when a prompt names only monday items other than the session's own and the session's
+  context already holds `MONDAY_SWITCH_NUDGE_TOKENS` (default 60000; `0` turns it off), the links hook asks
+  Claude to suggest a fresh session for the new task. The hook now runs sync on UserPromptSubmit for this;
+  installs registered before this keep the async entry until it is edited by hand.
 
 ### Fixed
 - `desc-get`, `desc-images` and `get --full` now read the whole item description. monday's `blocks`

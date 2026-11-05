@@ -4,14 +4,19 @@
  * lib/links.js). Register it on UserPromptSubmit, Stop and PostToolUse (Edit|Write|NotebookEdit|Bash),
  * async, and on SessionStart (not async). It reads the hook payload on stdin and never fails the session.
  *
- * Its only output: on SessionStart (startup, resume, fork) of a session with no custom title that the
+ * Its output: on SessionStart (startup, resume, fork) of a session with no custom title that the
  * links tie to exactly one monday item, it names it monday_<id>, the same as /rename. Set
- * MONDAY_LINKS_AUTONAME=0 to turn that off. Stores ids, branches and MR URLs only, never prompt text.
+ * MONDAY_LINKS_AUTONAME=0 to turn that off. On UserPromptSubmit (registered sync for this), a prompt
+ * naming only monday items other than the session's own, in a session whose context already holds
+ * MONDAY_SWITCH_NUDGE_TOKENS (default 60000; 0 turns it off), gets a one-line "start it fresh with
+ * cct <id>" nudge for Claude to pass on. Stores ids, branches and MR URLs only, never prompt text.
  */
 const path = require('path');
 const { openLinks, itemIdsIn, mrUrlsIn } = require('../lib/links');
 const { linksDbPath } = require('../lib/paths');
-const { createsMr, isAutomated, checkoutOf, commandDir, commandSourceBranch, transcriptTitle } = require('../lib/transcripts');
+const { createsMr, isAutomated, checkoutOf, commandDir, commandSourceBranch, transcriptTitle, contextTokens } = require('../lib/transcripts');
+
+const NUDGE_TOKENS = Number(process.env.MONDAY_SWITCH_NUDGE_TOKENS || 60000);
 
 function record(p) {
   const session = p.session_id;
@@ -23,10 +28,12 @@ function record(p) {
   const workDir = edited ? path.dirname(edited) : p.tool_name === 'Bash' ? commandDir(input.command, cwd) : cwd;
   const { repo, branch } = checkoutOf(workDir);
   const links = openLinks(linksDbPath());
+  let out = null;
   try {
     links.touchSession({ id: session, transcript: p.transcript_path || null, cwd });
     links.touchBranch({ session, repo, branch, cwd: workDir });
     if (p.hook_event_name === 'UserPromptSubmit') {
+      out = taskSwitchNudge(links, p); // before this prompt's own links land
       for (const item of itemIdsIn(p.prompt)) {
         links.linkTaskSession(item, session, 'prompt');
         links.linkTaskBranch(item, repo, branch, 'prompt');
@@ -46,6 +53,20 @@ function record(p) {
   } finally {
     links.close();
   }
+  return out;
+}
+
+/** A nudge to start a fresh session when a prompt moves a large session onto a different monday task, or nothing. */
+function taskSwitchNudge(links, p) {
+  const named = itemIdsIn(p.prompt);
+  if (!NUDGE_TOKENS || !named.length) return null;
+  const own = links.resolve({ session: p.session_id }).items;
+  if (!own.length || named.some((id) => own.includes(id))) return null;
+  const tokens = contextTokens(p.transcript_path);
+  if (tokens < NUDGE_TOKENS) return null;
+  const additionalContext = `Task switch: this session belongs to monday task ${own.join(', ')} and its context already holds about ${Math.round(tokens / 1000)}k tokens, while this prompt names task ${named.join(', ')}. `
+    + `At the start of your reply, tell the user in one line that starting it fresh with \`cct ${named[0]}\` (or /clear) would be cheaper, then do what the prompt asks.`;
+  return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext } };
 }
 
 /** The monday_<id> name for an untitled session that belongs to exactly one task, or nothing. */

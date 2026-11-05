@@ -13,7 +13,7 @@ test('withLinksHook adds the hook to each event, keeps everything else, and is i
   assert.equal(after.hooks.Stop.length, 2);
   assert.equal(after.hooks.Stop[0].hooks[0].command, 'afplay x.aiff');
   assert.equal(after.hooks.PostToolUse[0].matcher, 'Edit|Write|NotebookEdit|Bash');
-  assert.deepEqual(after.hooks.UserPromptSubmit[0].hooks[0], { type: 'command', command: 'node "/opt/monday-claude/hooks/links-hook.js"', async: true, timeout: 10 });
+  assert.deepEqual(after.hooks.UserPromptSubmit[0].hooks[0], { type: 'command', command: 'node "/opt/monday-claude/hooks/links-hook.js"', timeout: 5 });
   assert.equal(hasLinksHook(before), false);
   assert.equal(hasLinksHook(after), true);
   assert.deepEqual(withLinksHook(after, '/elsewhere/hooks/links-hook.js'), after); // a moved clone isn't added twice
@@ -38,9 +38,10 @@ test('pickBoards: list numbers and ids, mixed; anything else is an error', () =>
   assert.throws(() => pickBoards('9', boards), /neither a number from the list nor a board id/);
 });
 
-test('SessionStart gets the hook synchronously (its output names the session); other events async', () => {
+test('SessionStart and UserPromptSubmit get the hook synchronously (their output is read); other events async', () => {
   const after = withLinksHook({}, '/x/hooks/links-hook.js');
   assert.deepEqual(after.hooks.SessionStart[0].hooks[0], { type: 'command', command: 'node "/x/hooks/links-hook.js"', timeout: 5 });
+  assert.deepEqual(after.hooks.UserPromptSubmit[0].hooks[0], { type: 'command', command: 'node "/x/hooks/links-hook.js"', timeout: 5 });
   assert.equal(after.hooks.Stop[0].hooks[0].async, true);
   const old = { hooks: Object.fromEntries(['UserPromptSubmit', 'Stop', 'PostToolUse'].map((e) => [e, [{ hooks: [{ command: 'node "/x/hooks/links-hook.js"' }] }]])) };
   assert.equal(hasLinksHook(old), false); // an install from before SessionStart naming gets it added

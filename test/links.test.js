@@ -182,9 +182,35 @@ test('resume --print: the best session from its own directory, else a new named 
   s.touchSession({ id: 'S1', transcript, cwd: dir });
   s.linkTaskSession('10000000001', 'S1', 'title');
   s.close();
-  const run = (id) => JSON.parse(execFileSync('node', [path.join(__dirname, '..', 'mon.js'), 'resume', id, '--print', '--json'], { env: { ...process.env, MONDAY_LINKS_DB: db, MONDAY_CLAUDE_CONFIG: path.join(dir, 'ref.json'), monday_api_key: '' } }).toString());
+  const run = (id, ...extra) => JSON.parse(execFileSync('node', [path.join(__dirname, '..', 'mon.js'), 'resume', id, '--print', '--json', ...extra], { env: { ...process.env, MONDAY_LINKS_DB: db, MONDAY_CLAUDE_CONFIG: path.join(dir, 'ref.json'), monday_api_key: '' } }).toString());
   assert.equal(run('10000000001').command, `cd ${JSON.stringify(dir)} && claude --resume S1`);
   assert.match(run('10000000009').command, /claude --name monday_10000000009$/);
+  assert.match(run('10000000001', '--model', 'sonnet').command, /claude --resume S1 --model sonnet$/);
+  assert.match(run('10000000009', '--model', 'sonnet').command, /claude --name monday_10000000009 --model sonnet$/);
+});
+
+test('links-hook on UserPromptSubmit nudges a large session that moves to another task, and nothing else', sqlite, () => {
+  const db = tmpDb();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nudge-'));
+  const transcript = (tokens) => {
+    const file = path.join(dir, `t${tokens}.jsonl`);
+    const usage = { input_tokens: 2, cache_creation_input_tokens: 1000, cache_read_input_tokens: tokens - 1002, output_tokens: 50 };
+    fs.writeFileSync(file, [JSON.stringify({ type: 'user', message: { content: 'hi' } }), JSON.stringify({ type: 'assistant', message: { usage } }), JSON.stringify({ type: 'user', message: { content: 'next' } })].join('\n') + '\n');
+    return file;
+  };
+  const hook = (payload, env = {}) => execFileSync('node', [path.join(__dirname, '..', 'hooks', 'links-hook.js')], { input: JSON.stringify(payload), env: { ...process.env, MONDAY_LINKS_DB: db, MR_REBASE_BOT: '', MONDAY_SWITCH_NUDGE_TOKENS: '', ...env } }).toString();
+  const prompt = (session, text, tokens, env) => hook({ session_id: session, cwd: '/tmp', hook_event_name: 'UserPromptSubmit', prompt: text, transcript_path: transcript(tokens) }, env);
+  assert.equal(prompt('S', 'monday task 10000000001', 1000), ''); // first task: nothing to switch from
+  const out = JSON.parse(prompt('S', 'now pulses/10000000002 please', 140000));
+  assert.equal(out.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
+  assert.match(out.hookSpecificOutput.additionalContext, /task 10000000001.*140k tokens.*task 10000000002.*cct 10000000002/);
+  assert.equal(prompt('S', 'back to monday_10000000001', 140000), ''); // names its own task
+  assert.equal(prompt('SMALL', 'monday task 10000000003', 1000), '');
+  assert.equal(prompt('SMALL', 'monday task 10000000004', 30000), ''); // small context: switching in place is cheap
+  assert.equal(prompt('NEW', 'monday task 10000000005', 200000), ''); // no task yet
+  assert.equal(prompt('S', 'no task named here', 200000), '');
+  assert.equal(prompt('S2', 'monday task 10000000006', 1000), '');
+  assert.equal(prompt('S2', 'monday task 10000000007', 200000, { MONDAY_SWITCH_NUDGE_TOKENS: '0' }), ''); // turned off
 });
 
 test('an MR whose description the host returned without a task link has no task; the repo comes from its URL', sqlite, () => {

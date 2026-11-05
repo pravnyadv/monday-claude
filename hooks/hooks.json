@@ -6,8 +6,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/links-hook.js\"",
-            "async": true,
-            "timeout": 10
+            "timeout": 5
           }
         ]
       }
